@@ -271,7 +271,7 @@
         <button class="btn-date" id="btnTomorrow">Завтра</button>
       </div>
       <label for="datePicker" style="margin-top: 10px; font-size: 0.75rem;">Или выберите конкретную дату:</label>
-      <input type="date" id="datePicker" style="margin-top: 2px;">
+      <input type="date" id="datePicker" lang="ru" style="margin-top: 2px;">
     </div>
 
   <!-- Результаты -->
@@ -308,12 +308,14 @@
   const scheduleContainer = document.getElementById('scheduleContainer');
 
   // Форматирование даты в DD.MM.YYYY
-  function getFormattedDate(dateObj) {
-    const d = String(dateObj.getDate()).padStart(2, '0');
-    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const y = dateObj.getFullYear();
-    return `${d}.${m}.${y}`;
-  }
+  // Форматирование даты в российский формат DD.MM.YYYY
+    function getFormattedDate(dateObj) {
+    return dateObj.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+    }
 
   // Загрузка JSON
   async function loadData() {
@@ -349,6 +351,13 @@
   // Автокомплит аудиторий
   roomInput.addEventListener('focus', filterRooms);
   roomInput.addEventListener('input', filterRooms);
+
+  function formatToInputDate(dateObj) {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
 
   function filterRooms() {
     if (!dbData || !selectedBuilding) return;
@@ -396,9 +405,9 @@
   // Переключение дат
   function setDate(dateObj) {
     selectedDateStr = getFormattedDate(dateObj);
-    datePicker.value = dateObj.toISOString().split('T')[0];
+    datePicker.value = formatToInputDate(dateObj);
     renderSchedule();
-  }
+}
 
   btnToday.addEventListener('click', () => {
     btnToday.classList.add('active');
@@ -415,14 +424,17 @@
   });
 
   datePicker.addEventListener('change', (e) => {
-    if (!e.target.value) return;
-    btnToday.classList.remove('active');
-    btnTomorrow.classList.remove('active');
-    
-    const [y, m, d] = e.target.value.split('-');
-    selectedDateStr = `${d}.${m}.${y}`;
-    renderSchedule();
-  });
+  if (!e.target.value) return;
+  btnToday.classList.remove('active');
+  btnTomorrow.classList.remove('active');
+  
+  // Корректный разбор YYYY-MM-DD из календаря в локальную дату
+  const [y, m, d] = e.target.value.split('-').map(Number);
+  const selectedDate = new Date(y, m - 1, d);
+  
+  selectedDateStr = getFormattedDate(selectedDate);
+  renderSchedule();
+});
 
   // Отрисовка расписания
   function renderSchedule() {
@@ -482,7 +494,7 @@
 
   // Инициализация при старте
   const now = new Date();
-  datePicker.value = now.toISOString().split('T')[0];
+  datePicker.value = formatToInputDate(now);
   loadData();
 </script>
 
