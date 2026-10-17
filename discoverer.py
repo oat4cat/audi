@@ -4,6 +4,7 @@ import re
 import time
 import httpx
 from bs4 import BeautifulSoup
+import os
 
 BASE_URL = "https://ruz.narfu.ru/"
 
@@ -134,10 +135,11 @@ def discover_targeted_groups():
     print("\n--- Итоги сфокусированного сбора ---")
     print(f"Всего целевых групп в списке: {len(sorted_groups)}")
 
-    with open("groups.json", "w", encoding="utf-8") as f:
+    os.makedirs("data", exist_ok=True)
+    with open("data/groups.json", "w", encoding="utf-8") as f:
         json.dump(sorted_groups, f, ensure_ascii=False, indent=2)
 
-    print("Обновленный список сохранен в groups.json")
+    print("Обновленный список сохранен в data/groups.json")
 
 
 if __name__ == "__main__":

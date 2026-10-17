@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 import httpx
 from bs4 import BeautifulSoup
+import os
 
 BASE_URL = "https://ruz.narfu.ru/"
 
@@ -172,6 +173,7 @@ def main():
     now_iso = datetime.now().isoformat()
 
     # 1. Загружаем старую базу, если она существует
+    os.makedirs("data", exist_ok=True)
     db_file = "data/auditories.json"
     try:
         with open(db_file, "r", encoding="utf-8") as f:
