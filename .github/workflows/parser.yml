@@ -32,8 +32,8 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          if [ -f data/auditories_free.json ]; then
-            git add data/auditories_free.json
+          if [ -f data/auditories.json ]; then
+            git add data/auditories.json
           fi
 
           if git diff --cached --quiet; then
