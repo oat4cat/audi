@@ -31,6 +31,14 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/auditories.json
-          git commit -m "auto: update free auditories schedule" || exit 0
-          git push
+
+          if [ -f data/auditories_free.json ]; then
+            git add data/auditories_free.json
+          fi
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "auto: update free auditories schedule" || true
+            git push
+          fi
