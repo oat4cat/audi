@@ -1,0 +1,24 @@
+name: Update Groups List
+
+on:
+  schedule:
+    # Запуск 1-го числа каждого месяца в 02:00 UTC
+    - cron: '0 2 1 * *'
+  workflow_dispatch: # Возможность запустить вручную из интерфейса GitHub
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install httpx beautifulsoup4
+      - run: python discoverer.py
+      - run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/groups.json
+          git commit -m "auto: update groups list" || exit 0
+          git push
