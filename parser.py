@@ -77,6 +77,11 @@ def parse_group_html(html_text: str, group_id: str) -> list[dict]:
     parsed_slots = []
 
     day_blocks = soup.select("div.list.col-md-2")
+    group_full = soup.select_one("a.navbar-brand")
+    if group_full:
+        group_full_name = group_full.get_text(" ", strip=True).split('/')[-1].strip()
+    else:
+        group_full_name = group_id  
 
     for day in day_blocks:
         day_text_elem = day.select_one(".dayofweek")
@@ -105,7 +110,7 @@ def parse_group_html(html_text: str, group_id: str) -> list[dict]:
             num_para = num_elem.get_text(strip=True)
             time_para = time_elem.get_text(strip=True) if time_elem else "Не распознано"
             aud_raw = aud_elem.get_text(" ", strip=True)
-            group_name = group_elem.get_text(strip=True) if group_elem else "Не распознано"
+            group_name = group_elem.get_text(strip=True) if group_elem else group_full_name
 
             aud_clean = re.sub(
                 r"^ауд\.\s*", "", aud_raw, flags=re.IGNORECASE
@@ -132,9 +137,15 @@ def parse_group_html(html_text: str, group_id: str) -> list[dict]:
             lecturer_masked = ""
             if disc_elem:
                 disc_text = disc_elem.get_text(" ", strip=True)
-                lect_match = re.search(r"\(([^)]+)\)", disc_text)
+                # Ищем скобки, в которых лежит Фамилия И.О. (наличие точки после инициала)
+                lect_match = re.search(r"\(([^)]*?\b[А-ЯA-Z][а-яa-z\-]+\s+[А-ЯA-Z]\.[А-ЯA-Z]\.)\)", disc_text)
                 if lect_match:
                     lecturer_masked = mask_lecturer_name(lect_match.group(1))
+                else:
+                    # Резервный поиск последних скобок в строке, если форма инициалов чуть отличается
+                    all_matches = re.findall(r"\(([^)]+)\)", disc_text)
+                    if all_matches:
+                        lecturer_masked = mask_lecturer_name(all_matches[-1])
 
             discipline_name = (
                 re.sub(r"\([^)]*\)", "", disc_elem.get_text(strip=True)).strip()
@@ -161,7 +172,7 @@ def main():
     now_iso = datetime.now().isoformat()
 
     # 1. Загружаем старую базу, если она существует
-    db_file = "auditories.json"
+    db_file = "data/auditories.json"
     try:
         with open(db_file, "r", encoding="utf-8") as f:
             old_data = json.load(f)
@@ -170,7 +181,7 @@ def main():
         auditories_db = {}
 
     # Загружаем список групп
-    with open("groups.json", "r", encoding="utf-8") as f:
+    with open("data/groups.json", "r", encoding="utf-8") as f:
         groups = json.load(f)
 
     headers = {
