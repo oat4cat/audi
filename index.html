@@ -259,7 +259,7 @@
     <!-- Аудитория с полем ввода -->
     <div class="form-group">
       <label for="roomInput">Аудитория</label>
-      <input type="text" id="roomInput" placeholder="Начните вводить или выберите..." autocomplete="off" disabled>
+      <input type="tel" inputmode="numeric" id="roomInput" placeholder="Начните вводить или выберите..." autocomplete="off" disabled>
       <div class="dropdown-list" id="dropdownList"></div>
     </div>
 
@@ -497,6 +497,10 @@
   datePicker.value = formatToInputDate(now);
   loadData();
 </script>
+
+  <footer>
+      <a href="https://github.com/oat4cat/audi" target="_blank">Репозиторий на GitHub</a>
+  </footer>
 
 </body>
 </html>
