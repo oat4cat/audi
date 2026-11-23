@@ -2,6 +2,7 @@ import json
 import random
 import re
 import time
+from copy import deepcopy
 from datetime import datetime
 import httpx
 from bs4 import BeautifulSoup
@@ -169,6 +170,107 @@ def parse_group_html(html_text: str, group_id: str) -> list[dict]:
     return parsed_slots
 
 
+def extract_group_names(html_text: str) -> set[str]:
+    """Возвращает варианты названия группы, встречающиеся на странице."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    group_names = set()
+
+    brand = soup.select_one("a.navbar-brand")
+    if brand:
+        group_names.add(brand.get_text(" ", strip=True).split("/")[-1].strip())
+
+    for group_elem in soup.select("div.timetable_sheet:not(.transparent) .group"):
+        group_names.add(group_elem.get_text(strip=True))
+
+    return {name for name in group_names if name}
+
+
+def normalize_group_name(group_name: str) -> str:
+    return re.sub(r"\s+", " ", group_name).strip().casefold()
+
+
+def remove_group_slots(
+    auditories_db: dict, group_id: str, group_names: set[str]
+) -> None:
+    """Удаляет старые слоты одной группы после успешного обновления."""
+    normalized_names = {normalize_group_name(name) for name in group_names}
+
+    for auditory in list(auditories_db.values()):
+        schedule = auditory.get("schedule", {})
+        for date in list(schedule):
+            slots = schedule[date]
+            for num_para in list(slots):
+                slot = slots[num_para]
+                belongs_to_group = slot.get("source_group_id") == group_id
+                belongs_to_group |= (
+                    normalize_group_name(slot.get("group", "")) in normalized_names
+                )
+                if belongs_to_group:
+                    del slots[num_para]
+
+            if not slots:
+                del schedule[date]
+
+
+def merge_group_slots(
+    auditories_db: dict, slots: list[dict], group_id: str, now_iso: str
+) -> None:
+    """Добавляет актуальные занятия одной группы в общую базу."""
+    for slot in slots:
+        aud = slot["auditory"]
+        date = slot["date"]
+        num = slot["num_para"]
+
+        if aud not in auditories_db:
+            auditories_db[aud] = {
+                "updated_at": now_iso,
+                "schedule": {},
+            }
+
+        if date not in auditories_db[aud]["schedule"]:
+            auditories_db[aud]["schedule"][date] = {}
+
+        new_slot_data = {
+            "time": slot["time"],
+            "status": "busy",
+            "discipline": slot["discipline"],
+            "kind": slot["kind"],
+            "lecturer": slot["lecturer"],
+            "group": slot["group"],
+            "source_group_id": group_id,
+            "updated_at": now_iso,
+        }
+        existing_slot = auditories_db[aud]["schedule"][date].get(num)
+
+        if existing_slot != new_slot_data:
+            auditories_db[aud]["schedule"][date][num] = new_slot_data
+            auditories_db[aud]["updated_at"] = now_iso
+
+
+def reconcile_schedules(
+    old_data: dict,
+    successful_groups: dict[str, tuple[list[dict], set[str]]],
+    failed_group_ids: set[str],
+    now_iso: str,
+) -> dict:
+    """Обновляет успешные группы и сохраняет данные только при явной ошибке."""
+    if failed_group_ids:
+        auditories_db = deepcopy(old_data)
+        for group_id, (_, group_names) in successful_groups.items():
+            remove_group_slots(auditories_db, group_id, group_names)
+    else:
+        auditories_db = {}
+
+    for group_id, (slots, _) in successful_groups.items():
+        merge_group_slots(auditories_db, slots, group_id, now_iso)
+
+    for aud in list(auditories_db):
+        if not auditories_db[aud].get("schedule"):
+            del auditories_db[aud]
+
+    return auditories_db
+
+
 def main():
     now_iso = datetime.now().isoformat()
 
@@ -190,6 +292,9 @@ def main():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
     }
 
+    successful_groups = {}
+    failed_group_ids = set()
+
     with httpx.Client(headers=headers, follow_redirects=True) as client:
         for idx, group_id in enumerate(groups, 1):
             print(f"[{idx}/{len(groups)}] Запрос группы {group_id}...")
@@ -200,48 +305,23 @@ def main():
                 print(
                     f"   [WARN] Не удалось получить данные для группы {group_id}. Сохраняем старые данные."
                 )
+                failed_group_ids.add(group_id)
                 continue
 
-            # Извлекаем все свежие пары группы
-            slots = parse_group_html(html_text, group_id)
-
-            # Вливаем свежие данные в общую структуру
-            for slot in slots:
-                aud = slot["auditory"]
-                date = slot["date"]
-                num = slot["num_para"]
-
-                if aud not in auditories_db:
-                    auditories_db[aud] = {
-                        "updated_at": now_iso,
-                        "schedule": {},
-                    }
-
-                if date not in auditories_db[aud]["schedule"]:
-                    auditories_db[aud]["schedule"][date] = {}
-
-                new_slot_data = {
-                    "time": slot["time"],
-                    "status": "busy",
-                    "discipline": slot["discipline"],
-                    "kind": slot["kind"],
-                    "lecturer": slot["lecturer"],
-                    "group": slot["group"],
-                    "updated_at": now_iso,  # Время последнего успешного обновления этой конкретной пары
-                }
-
-                # Сравниваем с тем, что уже лежало
-                existing_slot = (
-                    auditories_db[aud]["schedule"].get(date, {}).get(num)
-                )
-
-                # Если данные изменились или их не было — обновляем слот и время у всей аудитории
-                if existing_slot != new_slot_data:
-                    auditories_db[aud]["schedule"][date][num] = new_slot_data
-                    auditories_db[aud]["updated_at"] = now_iso
+            successful_groups[group_id] = (
+                parse_group_html(html_text, group_id),
+                extract_group_names(html_text),
+            )
 
             # Пауза между группами
             time.sleep(random.uniform(0.8, 1.8))
+
+    auditories_db = reconcile_schedules(
+        auditories_db,
+        successful_groups,
+        failed_group_ids,
+        now_iso,
+    )
 
     # Формируем итоговый JSON
     output_data = {"global_updated_at": now_iso, "auditories": auditories_db}
