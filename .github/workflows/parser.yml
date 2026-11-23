@@ -1,6 +1,13 @@
 name: RUZ Auditories Parser
 
+concurrency:
+  group: generated-data
+  cancel-in-progress: false
+
 on:
+  push:
+    branches:
+      - main
   schedule:
     # 01:00 UTC == 04:00 по МСК
     - cron: '0 1 * * *'
@@ -27,21 +34,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Download latest generated data
+        run: |
+          mkdir -p data
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/data/data/auditories.json" -o data/auditories.json \
+            || curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/data/auditories.json" -o data/auditories.json
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/data/data/groups.json" -o data/groups.json \
+            || curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/data/groups.json" -o data/groups.json
+
       - name: Run Parser
         run: python parser.py
 
-      - name: Commit and Push changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          if [ -f data/auditories.json ]; then
-            git add data/auditories.json
-          fi
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "auto: update free auditories schedule" || true
-            git push
-          fi
+      - name: Publish generated data without history
+        run: bash .github/scripts/publish-generated-data.sh

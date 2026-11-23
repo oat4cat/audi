@@ -1,5 +1,9 @@
 name: Update Groups List
 
+concurrency:
+  group: generated-data
+  cancel-in-progress: false
+
 on:
   schedule:
     # Запуск 1-го числа каждого месяца в 02:00 UTC
@@ -19,10 +23,13 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install httpx beautifulsoup4
+      - name: Download latest generated data
+        run: |
+          mkdir -p data
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/data/data/auditories.json" -o data/auditories.json \
+            || curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/data/auditories.json" -o data/auditories.json
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/data/data/groups.json" -o data/groups.json \
+            || curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/data/groups.json" -o data/groups.json
       - run: python discoverer.py
-      - run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/groups.json
-          git commit -m "auto: update groups list" || exit 0
-          git push
+      - name: Publish generated data without history
+        run: bash .github/scripts/publish-generated-data.sh
