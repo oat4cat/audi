@@ -3,12 +3,47 @@ import random
 import re
 import time
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime
 import httpx
 from bs4 import BeautifulSoup
 import os
 
 BASE_URL = "https://ruz.narfu.ru/"
+REQUEST_ATTEMPTS = 2
+MAX_CONSECUTIVE_GROUP_FAILURES = 3
+
+
+class ScheduleFetchError(Exception):
+    """Не удалось получить корректную страницу расписания после повторов."""
+
+
+class ScheduleSiteUnavailableError(ScheduleFetchError):
+    """Сайт расписания недоступен для продолжения текущего прогона."""
+
+
+@dataclass
+class ConsecutiveFailureTracker:
+    """Отслеживает подряд идущие ошибки групп для остановки полного обхода."""
+
+    threshold: int
+    count: int = 0
+
+    def record_success(self) -> None:
+        self.count = 0
+
+    def record_failure(self) -> bool:
+        self.count += 1
+        return self.count >= self.threshold
+
+
+def is_schedule_page(html_text: str) -> bool:
+    """Проверяет, что полученный HTML похож на страницу расписания группы."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    return bool(
+        soup.select_one("a.navbar-brand")
+        and soup.select("div.list.col-md-2")
+    )
 
 
 def mask_lecturer_name(full_name: str) -> str:
@@ -49,28 +84,44 @@ def resolve_building(aud_text: str) -> str | None:
 
 
 def fetch_group_schedule_with_retry(
-    client: httpx.Client, group_id: str, max_retries: int = 3
-) -> str | None:
-    """Запрашивает расписание группы с механизмом повторов при таймаутах."""
+    client: httpx.Client,
+    group_id: str,
+    max_attempts: int = REQUEST_ATTEMPTS,
+    retry_delay: float = 2.0,
+) -> str:
+    """Запрашивает страницу группы, повторяя разовый сбой ровно один раз."""
     url = f"{BASE_URL}?timetable&group={group_id}"
+    last_error = "неизвестная ошибка"
 
-    for attempt in range(1, max_retries + 1):
+    for attempt in range(1, max_attempts + 1):
         try:
             response = client.get(url, timeout=15.0)
+            if 500 <= response.status_code < 600:
+                raise ScheduleSiteUnavailableError(
+                    f"сервер вернул HTTP {response.status_code}"
+                )
+
             if response.status_code == 200:
-                return response.text
-            print(
-                f"   [!] Группа {group_id}: Статус {response.status_code} (попытка {attempt}/{max_retries})"
-            )
-        except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.HTTPError) as e:
-            print(
-                f"   [!] Группа {group_id}: Ошибка сети ({e}) (попытка {attempt}/{max_retries})"
-            )
+                if is_schedule_page(response.text):
+                    return response.text
+                last_error = "сервер не отдал страницу расписания"
+            else:
+                last_error = f"статус {response.status_code}"
+        except ScheduleSiteUnavailableError:
+            raise
+        except httpx.HTTPError as error:
+            last_error = f"ошибка сети ({error})"
 
-        if attempt < max_retries:
-            time.sleep(2.0 * attempt)  # Нарастающая пауза перед повтором
+        print(
+            f"   [!] Группа {group_id}: {last_error} "
+            f"(попытка {attempt}/{max_attempts})"
+        )
+        if attempt < max_attempts:
+            time.sleep(retry_delay)
 
-    return None
+    raise ScheduleFetchError(
+        f"группа {group_id}: {last_error} после {max_attempts} попыток"
+    )
 
 
 def parse_group_html(html_text: str, group_id: str) -> list[dict]:
@@ -271,6 +322,47 @@ def reconcile_schedules(
     return auditories_db
 
 
+def collect_group_schedules(
+    client: httpx.Client,
+    groups: list[str],
+    failure_threshold: int = MAX_CONSECUTIVE_GROUP_FAILURES,
+) -> tuple[dict[str, tuple[list[dict], set[str]]], set[str]]:
+    """Собирает группы, останавливая обход при признаках полного отказа сайта."""
+    successful_groups = {}
+    failed_group_ids = set()
+    failures = ConsecutiveFailureTracker(failure_threshold)
+
+    for idx, group_id in enumerate(groups, 1):
+        print(f"[{idx}/{len(groups)}] Запрос группы {group_id}...")
+
+        try:
+            html_text = fetch_group_schedule_with_retry(client, group_id)
+        except ScheduleSiteUnavailableError as error:
+            raise ScheduleSiteUnavailableError(
+                f"группа {group_id}: {error}"
+            ) from error
+        except ScheduleFetchError as error:
+            print(
+                f"   [WARN] {error}. Сохраняем старые данные для этой группы."
+            )
+            failed_group_ids.add(group_id)
+            if failures.record_failure():
+                raise ScheduleSiteUnavailableError(
+                    f"{failures.count} ошибок получения страниц подряд"
+                ) from error
+            continue
+
+        failures.record_success()
+        successful_groups[group_id] = (
+            parse_group_html(html_text, group_id),
+            extract_group_names(html_text),
+        )
+
+        time.sleep(random.uniform(0.8, 1.8))
+
+    return successful_groups, failed_group_ids
+
+
 def main():
     now_iso = datetime.now().isoformat()
 
@@ -292,29 +384,18 @@ def main():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
     }
 
-    successful_groups = {}
-    failed_group_ids = set()
-
     with httpx.Client(headers=headers, follow_redirects=True) as client:
-        for idx, group_id in enumerate(groups, 1):
-            print(f"[{idx}/{len(groups)}] Запрос группы {group_id}...")
-
-            html_text = fetch_group_schedule_with_retry(client, group_id)
-
-            if html_text is None:
-                print(
-                    f"   [WARN] Не удалось получить данные для группы {group_id}. Сохраняем старые данные."
-                )
-                failed_group_ids.add(group_id)
-                continue
-
-            successful_groups[group_id] = (
-                parse_group_html(html_text, group_id),
-                extract_group_names(html_text),
+        try:
+            successful_groups, failed_group_ids = collect_group_schedules(
+                client, groups
             )
-
-            # Пауза между группами
-            time.sleep(random.uniform(0.8, 1.8))
+        except ScheduleSiteUnavailableError as error:
+            print(
+                f"\n[STOP] Сайт расписания недоступен: {error}. "
+                "Старая база сохранена без изменений; следующая попытка — "
+                "по регулярному расписанию."
+            )
+            return
 
     auditories_db = reconcile_schedules(
         auditories_db,

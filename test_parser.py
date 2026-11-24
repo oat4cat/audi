@@ -1,6 +1,16 @@
 import unittest
+from unittest.mock import Mock, patch
 
-from parser import reconcile_schedules
+import httpx
+
+from parser import (
+    ConsecutiveFailureTracker,
+    ScheduleFetchError,
+    ScheduleSiteUnavailableError,
+    collect_group_schedules,
+    fetch_group_schedule_with_retry,
+    reconcile_schedules,
+)
 
 
 NOW = "2026-11-23T10:00:00"
@@ -113,6 +123,90 @@ class ReconcileSchedulesTests(unittest.TestCase):
         self.assertIn("1", old_slots)
         self.assertNotIn("2", old_slots)
         self.assertIn("2", result["200 (11 корпус)"]["schedule"]["23.11.2026"])
+
+
+class FetchGroupScheduleTests(unittest.TestCase):
+    @staticmethod
+    def schedule_html(group="Группа 111111"):
+        return f"""
+            <a class="navbar-brand">{group}</a>
+            <div class="list col-md-2">
+                <div class="dayofweek">Понедельник, 23.11.2026</div>
+            </div>
+        """
+
+    def test_retries_transient_network_error_once(self):
+        client = Mock()
+        client.get.side_effect = [
+            httpx.ReadTimeout("timeout"),
+            Mock(status_code=200, text=self.schedule_html()),
+        ]
+
+        with patch("parser.time.sleep") as sleep:
+            result = fetch_group_schedule_with_retry(client, "123")
+
+        self.assertIn("dayofweek", result)
+        self.assertEqual(client.get.call_count, 2)
+        sleep.assert_called_once_with(2.0)
+
+    def test_retries_invalid_success_response_once(self):
+        client = Mock()
+        client.get.side_effect = [
+            Mock(status_code=200, text="<html>Service temporarily unavailable</html>"),
+            Mock(status_code=200, text=self.schedule_html()),
+        ]
+
+        with patch("parser.time.sleep"):
+            result = fetch_group_schedule_with_retry(client, "123")
+
+        self.assertIn("navbar-brand", result)
+        self.assertEqual(client.get.call_count, 2)
+
+    def test_raises_after_one_retry_for_persistent_failure(self):
+        client = Mock()
+        client.get.return_value = Mock(status_code=429, text="")
+
+        with patch("parser.time.sleep"), self.assertRaises(ScheduleFetchError):
+            fetch_group_schedule_with_retry(client, "123")
+
+        self.assertEqual(client.get.call_count, 2)
+
+    def test_server_error_aborts_without_retry(self):
+        client = Mock()
+        client.get.return_value = Mock(status_code=503, text="")
+
+        with self.assertRaises(ScheduleSiteUnavailableError):
+            fetch_group_schedule_with_retry(client, "123")
+
+        client.get.assert_called_once()
+
+
+class ConsecutiveFailureTests(unittest.TestCase):
+    def test_success_resets_failure_count(self):
+        failures = ConsecutiveFailureTracker(3)
+
+        self.assertFalse(failures.record_failure())
+        self.assertFalse(failures.record_failure())
+        failures.record_success()
+
+        self.assertFalse(failures.record_failure())
+        self.assertFalse(failures.record_failure())
+        self.assertTrue(failures.record_failure())
+
+    def test_collection_stops_at_consecutive_failure_threshold(self):
+        client = Mock()
+
+        with patch(
+            "parser.fetch_group_schedule_with_retry",
+            side_effect=ScheduleFetchError("unavailable"),
+        ) as fetch, patch("parser.time.sleep"):
+            with self.assertRaisesRegex(
+                ScheduleSiteUnavailableError,
+                "3 ошибок получения страниц подряд",
+            ):
+                collect_group_schedules(client, ["1", "2", "3", "4"])
+
+        self.assertEqual(fetch.call_count, 3)
 
 
 if __name__ == "__main__":
