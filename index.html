@@ -72,6 +72,31 @@
       margin-bottom: 20px;
     }
 
+    .view-switch {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      padding: 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .view-button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .view-button.active {
+      background: var(--primary);
+      color: #fff;
+    }
+
     .form-group {
       display: flex;
       flex-direction: column;
@@ -155,7 +180,10 @@
 
     .building-button:focus-visible,
     .room-button:focus-visible,
-    .btn-date:focus-visible {
+    .btn-date:focus-visible,
+    .view-button:focus-visible,
+    .comparison-cell:focus-visible,
+    .remove-room:focus-visible {
       outline: 3px solid rgba(140, 109, 83, 0.3);
       outline-offset: 2px;
     }
@@ -299,6 +327,177 @@
       color: var(--text-muted);
     }
 
+    .comparison-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card-bg);
+    }
+
+    .comparison-table {
+      width: 100%;
+      min-width: 540px;
+      border-collapse: separate;
+      border-spacing: 0;
+      table-layout: fixed;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .comparison-table th:last-child,
+    .comparison-table td:last-child {
+      border-right: 0;
+    }
+
+    .comparison-table tr:last-child th,
+    .comparison-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .comparison-table thead th {
+      height: 54px;
+      padding: 8px 4px;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      background: #faf9f7;
+    }
+
+    .comparison-table thead th:first-child {
+      width: 120px;
+      padding-left: 12px;
+      text-align: left;
+    }
+
+    .comparison-table tbody th {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      width: 120px;
+      padding: 10px 8px 10px 12px;
+      background: #faf9f7;
+      font-size: 0.82rem;
+      text-align: left;
+    }
+
+    .room-row-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .room-row-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .remove-room {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.15rem;
+      line-height: 1;
+    }
+
+    .remove-room:hover {
+      background: #eeeae5;
+      color: var(--text);
+    }
+
+    .comparison-table td {
+      padding: 5px;
+    }
+
+    .comparison-cell {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid;
+      border-radius: 7px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+
+    .comparison-cell.free {
+      border-color: var(--free-border);
+      background: var(--free-bg);
+      color: var(--free-text);
+    }
+
+    .comparison-cell.busy {
+      border-color: var(--busy-border);
+      background: var(--busy-bg);
+      color: var(--busy-text);
+    }
+
+    .comparison-legend {
+      display: flex;
+      gap: 16px;
+      margin: 0 0 8px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .legend-dot.free {
+      background: var(--free-border);
+    }
+
+    .legend-dot.busy {
+      background: var(--busy-border);
+    }
+
+    .comparison-tooltip {
+      position: fixed;
+      z-index: 10;
+      width: min(300px, calc(100vw - 24px));
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #302d2a;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+      font-size: 0.84rem;
+      line-height: 1.4;
+      pointer-events: none;
+    }
+
+    .comparison-tooltip[hidden] {
+      display: none;
+    }
+
+    .comparison-tooltip strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .comparison-tooltip .tooltip-muted {
+      color: #d8d2cc;
+    }
+
     /* Подвал */
     footer {
         width: 100%;
@@ -328,6 +527,14 @@
   </header>
 
   <div class="controls">
+    <div class="form-group">
+      <label>Режим</label>
+      <div class="view-switch" id="viewSwitch" role="radiogroup" aria-label="Режим просмотра">
+        <button class="view-button active" type="button" data-view="single" role="radio" aria-checked="true">Одна аудитория</button>
+        <button class="view-button" type="button" data-view="compare" role="radio" aria-checked="false">Сравнение</button>
+      </div>
+    </div>
+
     <!-- Корпус -->
     <div class="form-group">
       <label>Корпус</label>
@@ -339,7 +546,7 @@
 
     <!-- Аудитория -->
     <div class="form-group">
-      <label>Аудитория</label>
+      <label id="roomPickerLabel">Аудитория</label>
       <div class="room-grid" id="roomGrid" role="group" aria-label="Аудитория">
         <div class="rooms-placeholder">Загрузка аудиторий...</div>
       </div>
@@ -363,6 +570,8 @@
   </div>
 </div>
 
+<div id="comparisonTooltip" class="comparison-tooltip" role="tooltip" hidden></div>
+
 <script>
   // Дефолтное расписание звонков
   const DEFAULT_TIMES = {
@@ -378,6 +587,10 @@
   let dbData = null;
   let selectedBuilding = localStorage.getItem('selectedBuilding') || "10 корпус";
   let selectedRoomKey = "";
+  let viewMode = "single";
+  const selectedComparisonRooms = new Set();
+  let activeTooltipButton = null;
+  let tooltipPinned = false;
   let selectedDateStr = getFormattedDate(new Date());
   const DATA_URL = 'https://raw.githubusercontent.com/oat4cat/audi/data/data/auditories.json';
   const DATA_FALLBACK_URL = './data/auditories.json';
@@ -385,11 +598,14 @@
   // Элементы DOM
   const globalUpdatedEl = document.getElementById('globalUpdated');
   const buildingButtons = [...document.querySelectorAll('.building-button')];
+  const viewButtons = [...document.querySelectorAll('.view-button')];
   const roomGrid = document.getElementById('roomGrid');
+  const roomPickerLabel = document.getElementById('roomPickerLabel');
   const datePicker = document.getElementById('datePicker');
   const btnToday = document.getElementById('btnToday');
   const btnTomorrow = document.getElementById('btnTomorrow');
   const scheduleContainer = document.getElementById('scheduleContainer');
+  const comparisonTooltip = document.getElementById('comparisonTooltip');
 
   // Форматирование даты в DD.MM.YYYY
   // Форматирование даты в российский формат DD.MM.YYYY
@@ -425,7 +641,9 @@
 
   function selectBuilding(building) {
     selectedBuilding = building;
-    selectedRoomKey = "";
+    if (viewMode === "single") {
+      selectedRoomKey = "";
+    }
     localStorage.setItem('selectedBuilding', building);
 
     buildingButtons.forEach(button => {
@@ -440,6 +658,30 @@
 
   buildingButtons.forEach(button => {
     button.addEventListener('click', () => selectBuilding(button.dataset.building));
+  });
+
+  function selectViewMode(mode) {
+    viewMode = mode;
+    if (mode === "compare" && selectedRoomKey) {
+      selectedComparisonRooms.add(selectedRoomKey);
+    }
+
+    viewButtons.forEach(button => {
+      const active = button.dataset.view === mode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-checked', String(active));
+    });
+
+    roomPickerLabel.textContent = mode === "compare"
+      ? "Аудитории для сравнения"
+      : "Аудитория";
+    hideComparisonTooltip();
+    renderRooms();
+    renderSchedule();
+  }
+
+  viewButtons.forEach(button => {
+    button.addEventListener('click', () => selectViewMode(button.dataset.view));
   });
 
   function formatToInputDate(dateObj) {
@@ -457,6 +699,7 @@
 
     const rooms = Object.keys(dbData.auditories || {})
       .filter(key => key.includes(`(${selectedBuilding})`))
+      .filter(key => !isVucRoom(key))
       .sort((a, b) => a.localeCompare(b, 'ru', { numeric: true }));
 
     roomGrid.innerHTML = "";
@@ -467,23 +710,34 @@
     }
 
     rooms.forEach(roomKey => {
-      const roomNumber = roomKey
-        .replace(/\s*\([^)]+\)/, '')
-        .replace(/^Полигон беспилотных систем\.\s*Спортивный зал/i, 'Спортзал');
+      const roomNumber = formatRoomName(roomKey);
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'room-button';
       button.textContent = roomNumber;
       button.setAttribute('aria-label', `Аудитория ${roomNumber}, ${selectedBuilding}`);
-      button.setAttribute('aria-pressed', 'false');
+      const active = viewMode === "compare"
+        ? selectedComparisonRooms.has(roomKey)
+        : selectedRoomKey === roomKey;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
 
       button.addEventListener('click', () => {
-        selectedRoomKey = roomKey;
-        roomGrid.querySelectorAll('.room-button').forEach(roomButton => {
-          const active = roomButton === button;
-          roomButton.classList.toggle('active', active);
-          roomButton.setAttribute('aria-pressed', String(active));
-        });
+        if (viewMode === "compare") {
+          if (selectedComparisonRooms.has(roomKey)) {
+            selectedComparisonRooms.delete(roomKey);
+          } else {
+            selectedComparisonRooms.add(roomKey);
+          }
+          renderRooms();
+        } else {
+          selectedRoomKey = roomKey;
+          roomGrid.querySelectorAll('.room-button').forEach(roomButton => {
+            const active = roomButton === button;
+            roomButton.classList.toggle('active', active);
+            roomButton.setAttribute('aria-pressed', String(active));
+          });
+        }
         renderSchedule();
       });
       roomGrid.appendChild(button);
@@ -526,6 +780,11 @@
 
   // Отрисовка расписания
   function renderSchedule() {
+    if (viewMode === "compare") {
+      renderComparison();
+      return;
+    }
+
     if (!selectedRoomKey || !dbData) {
       scheduleContainer.innerHTML = `<div class="empty-state">Выберите аудиторию для просмотра расписания</div>`;
       return;
@@ -561,9 +820,9 @@
             <span class="slot-status status-busy">Занято</span>
           </div>
           <div class="slot-details">
-            <div class="discipline">${slot.discipline || 'Занятие'} (${slot.kind || 'Пара'})</div>
-            ${groupText ? `<div class="lecturer">Группа: <b>${groupText}</b></div>` : ''}
-            ${slot.lecturer ? `<div class="lecturer">Преподаватель: ${slot.lecturer}</div>` : ''}
+            <div class="discipline">${escapeHtml(slot.discipline || 'Занятие')} (${escapeHtml(slot.kind || 'Пара')})</div>
+            ${groupText ? `<div class="lecturer">Группа: <b>${escapeHtml(groupText)}</b></div>` : ''}
+            ${slot.lecturer ? `<div class="lecturer">Преподаватель: ${escapeHtml(slot.lecturer)}</div>` : ''}
           </div>
           ${updatedText ? `<div class="slot-updated">${updatedText}</div>` : ''}
         `;
@@ -579,6 +838,206 @@
       scheduleContainer.appendChild(card);
     }
   }
+
+  function renderComparison() {
+    hideComparisonTooltip();
+    if (!dbData || selectedComparisonRooms.size === 0) {
+      scheduleContainer.innerHTML = `
+        <div class="empty-state">
+          Выберите аудитории для сравнения — можно добавлять их из обоих корпусов
+        </div>
+      `;
+      return;
+    }
+
+    const roomKeys = [...selectedComparisonRooms]
+      .filter(roomKey => dbData.auditories && dbData.auditories[roomKey])
+      .sort((a, b) => a.localeCompare(b, 'ru', { numeric: true }));
+
+    scheduleContainer.innerHTML = `
+      <div class="comparison-legend">
+        <span class="legend-item"><span class="legend-dot free"></span>Свободно</span>
+        <span class="legend-item"><span class="legend-dot busy"></span>Занято</span>
+      </div>
+      <div class="comparison-wrap">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">Аудитория</th>
+              ${Array.from({ length: 7 }, (_, index) => {
+                const pair = String(index + 1);
+                return `
+                  <th scope="col">
+                    <div>${pair} пара</div>
+                    <small>${DEFAULT_TIMES[pair]}</small>
+                  </th>
+                `;
+              }).join('')}
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    `;
+
+    const tableBody = scheduleContainer.querySelector('tbody');
+    roomKeys.forEach(roomKey => {
+      const audObj = dbData.auditories[roomKey];
+      const daySchedule = (audObj.schedule && audObj.schedule[selectedDateStr]) || {};
+      const row = document.createElement('tr');
+      const heading = document.createElement('th');
+      heading.scope = 'row';
+      const roomName = formatComparisonRoomName(roomKey);
+      heading.innerHTML = `
+        <div class="room-row-title">
+          <span class="room-row-name">${escapeHtml(roomName)}</span>
+          <button class="remove-room" type="button"
+            aria-label="Убрать ${escapeHtml(roomKey)} из сравнения">×</button>
+        </div>
+      `;
+      heading.querySelector('.remove-room').addEventListener('click', () => {
+        selectedComparisonRooms.delete(roomKey);
+        renderRooms();
+        renderSchedule();
+      });
+      row.appendChild(heading);
+
+      for (let pair = 1; pair <= 7; pair++) {
+        const pairKey = String(pair);
+        const slot = daySchedule[pairKey];
+        const cell = document.createElement('td');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `comparison-cell ${slot ? 'busy' : 'free'}`;
+        button.setAttribute(
+          'aria-label',
+          `${roomKey}, ${pair} пара: ${slot ? 'занято' : 'свободно'}`
+        );
+        const tooltipHtml = getSlotTooltipHtml(roomKey, pairKey, slot);
+
+        button.addEventListener('mouseenter', () => showComparisonTooltip(button, tooltipHtml, false));
+        button.addEventListener('mouseleave', () => {
+          if (!tooltipPinned) hideComparisonTooltip();
+        });
+        button.addEventListener('focus', () => showComparisonTooltip(button, tooltipHtml, false));
+        button.addEventListener('blur', () => {
+          if (!tooltipPinned) hideComparisonTooltip();
+        });
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (tooltipPinned && activeTooltipButton === button) {
+            hideComparisonTooltip();
+          } else {
+            showComparisonTooltip(button, tooltipHtml, true);
+          }
+        });
+
+        cell.appendChild(button);
+        row.appendChild(cell);
+      }
+      tableBody.appendChild(row);
+    });
+  }
+
+  function formatRoomName(roomKey, includeBuilding = false) {
+    const roomName = includeBuilding
+      ? roomKey.replace(/\s*\(([^)]+)\)/, ' · $1')
+      : roomKey.replace(/\s*\([^)]+\)/, '');
+    return roomName
+      .replace(/^Полигон беспилотных систем\.\s*Спортивный зал/i, 'Спортзал');
+  }
+
+  function formatComparisonRoomName(roomKey) {
+    const match = roomKey.match(/^(.*?)\s*\((10|11) корпус\)$/);
+    if (!match) return formatRoomName(roomKey, true);
+
+    const roomNumber = match[1].trim();
+    return match[2] === "11" ? `11${roomNumber}` : roomNumber;
+  }
+
+  function isVucRoom(roomKey) {
+    return /ВУЦ/i.test(roomKey);
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function getSlotTooltipHtml(roomKey, pairKey, slot) {
+    const timeText = slot && slot.time ? slot.time : DEFAULT_TIMES[pairKey];
+    const commonHeader = `
+      <strong>${escapeHtml(roomKey)} · ${pairKey} пара</strong>
+      <div class="tooltip-muted">${escapeHtml(timeText || '')}</div>
+    `;
+
+    if (!slot) {
+      return `${commonHeader}<div>Аудитория свободна</div>`;
+    }
+
+    const groupText = slot.group_id || slot.group || "";
+    let updatedText = "";
+    if (slot.updated_at) {
+      const updatedAt = new Date(slot.updated_at);
+      updatedText = `Данные от ${updatedAt.toLocaleDateString('ru-RU')} ${updatedAt.toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })}`;
+    }
+
+    return `
+      ${commonHeader}
+      <div><b>${escapeHtml(slot.discipline || 'Занятие')}</b>${slot.kind ? ` · ${escapeHtml(slot.kind)}` : ''}</div>
+      ${groupText ? `<div>Группа: ${escapeHtml(groupText)}</div>` : ''}
+      ${slot.lecturer ? `<div>Преподаватель: ${escapeHtml(slot.lecturer)}</div>` : ''}
+      ${updatedText ? `<div class="tooltip-muted">${escapeHtml(updatedText)}</div>` : ''}
+    `;
+  }
+
+  function showComparisonTooltip(button, html, pin) {
+    if (!pin && tooltipPinned && activeTooltipButton !== button) return;
+    activeTooltipButton = button;
+    tooltipPinned = pin;
+    comparisonTooltip.innerHTML = html;
+    comparisonTooltip.hidden = false;
+    button.setAttribute('aria-describedby', 'comparisonTooltip');
+
+    const buttonRect = button.getBoundingClientRect();
+    const tooltipRect = comparisonTooltip.getBoundingClientRect();
+    const left = Math.min(
+      window.innerWidth - tooltipRect.width - 12,
+      Math.max(12, buttonRect.left + buttonRect.width / 2 - tooltipRect.width / 2)
+    );
+    const placeAbove = buttonRect.bottom + tooltipRect.height + 16 > window.innerHeight;
+    const top = placeAbove
+      ? Math.max(12, buttonRect.top - tooltipRect.height - 8)
+      : buttonRect.bottom + 8;
+    comparisonTooltip.style.left = `${left}px`;
+    comparisonTooltip.style.top = `${top}px`;
+  }
+
+  function hideComparisonTooltip() {
+    if (activeTooltipButton) {
+      activeTooltipButton.removeAttribute('aria-describedby');
+    }
+    activeTooltipButton = null;
+    tooltipPinned = false;
+    comparisonTooltip.hidden = true;
+  }
+
+  document.addEventListener('click', (event) => {
+    if (tooltipPinned && !event.target.closest('.comparison-cell')) {
+      hideComparisonTooltip();
+    }
+  });
+  window.addEventListener('resize', hideComparisonTooltip);
+  window.addEventListener('scroll', () => {
+    if (!tooltipPinned) hideComparisonTooltip();
+  }, true);
 
   // Инициализация при старте
   const now = new Date();
