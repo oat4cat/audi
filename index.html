@@ -618,21 +618,64 @@
     }
 
   // Загрузка JSON
-  async function loadData() {
+  async function fetchScheduleData(url) {
+    const controller = typeof AbortController === "function"
+      ? new AbortController()
+      : null;
+    const timeoutId = controller
+      ? window.setTimeout(() => controller.abort(), 12000)
+      : null;
+
     try {
-      let response = await fetch(`${DATA_URL}?v=${Date.now()}`);
+      const response = await fetch(
+        `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`,
+        controller ? { signal: controller.signal } : undefined
+      );
       if (!response.ok) {
-        response = await fetch(`${DATA_FALLBACK_URL}?v=${Date.now()}`);
+        throw new Error(`HTTP ${response.status}`);
       }
-      if (!response.ok) throw new Error("Файл не найден");
-      dbData = await response.json();
-      
+
+      const data = await response.json();
+      if (!data || typeof data.auditories !== "object") {
+        throw new Error("Некорректный формат auditories.json");
+      }
+      return data;
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    }
+  }
+
+  async function loadData() {
+    const dataUrls = [DATA_URL, DATA_FALLBACK_URL];
+    let lastError = null;
+
+    for (const url of dataUrls) {
+      try {
+        dbData = await fetchScheduleData(url);
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        console.warn(`Не удалось загрузить расписание из ${url}`, error);
+      }
+    }
+
+    if (!dbData) {
+      console.error("Не удалось загрузить auditories.json", lastError);
+      globalUpdatedEl.textContent = "Ошибка загрузки базы данных";
+      scheduleContainer.innerHTML = `<div class="empty-state">Не удалось загрузить данные (auditories.json)</div>`;
+      roomGrid.innerHTML = `<div class="rooms-placeholder">Аудитории недоступны</div>`;
+      return;
+    }
+
+    try {
       if (dbData.global_updated_at) {
         const dt = new Date(dbData.global_updated_at);
         globalUpdatedEl.textContent = `Обновлено: ${dt.toLocaleDateString('ru-RU')} в ${dt.toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'})}`;
       }
       selectBuilding(selectedBuilding);
     } catch (e) {
+      console.error("Не удалось отобразить данные расписания", e);
       globalUpdatedEl.textContent = "Ошибка загрузки базы данных";
       scheduleContainer.innerHTML = `<div class="empty-state">Не удалось загрузить данные (auditories.json)</div>`;
       roomGrid.innerHTML = `<div class="rooms-placeholder">Аудитории недоступны</div>`;

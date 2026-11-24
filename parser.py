@@ -42,7 +42,7 @@ def is_schedule_page(html_text: str) -> bool:
     soup = BeautifulSoup(html_text, "html.parser")
     return bool(
         soup.select_one("a.navbar-brand")
-        and soup.select("div.list.col-md-2")
+        and soup.select("div.list:has(.dayofweek)")
     )
 
 
@@ -129,7 +129,7 @@ def parse_group_html(html_text: str, group_id: str) -> list[dict]:
     soup = BeautifulSoup(html_text, "html.parser")
     parsed_slots = []
 
-    day_blocks = soup.select("div.list.col-md-2")
+    day_blocks = soup.select("div.list:has(.dayofweek)")
     group_full = soup.select_one("a.navbar-brand")
     if group_full:
         group_full_name = group_full.get_text(" ", strip=True).split('/')[-1].strip()

@@ -9,6 +9,7 @@ from parser import (
     ScheduleSiteUnavailableError,
     collect_group_schedules,
     fetch_group_schedule_with_retry,
+    parse_group_html,
     reconcile_schedules,
 )
 
@@ -180,6 +181,22 @@ class FetchGroupScheduleTests(unittest.TestCase):
 
         client.get.assert_called_once()
 
+    def test_accepts_schedule_layout_without_col_md_2(self):
+        client = Mock()
+        html = """
+            <a class="navbar-brand">Группа 113501</a>
+            <div class="group_list_1 col-md-7">
+                <div class="list col-md-3">
+                    <div class="dayofweek">Понедельник, 23.11.2026</div>
+                </div>
+            </div>
+        """
+        client.get.return_value = Mock(status_code=200, text=html)
+
+        result = fetch_group_schedule_with_retry(client, "20297")
+
+        self.assertEqual(result, html)
+
 
 class ConsecutiveFailureTests(unittest.TestCase):
     def test_success_resets_failure_count(self):
@@ -207,6 +224,30 @@ class ConsecutiveFailureTests(unittest.TestCase):
                 collect_group_schedules(client, ["1", "2", "3", "4"])
 
         self.assertEqual(fetch.call_count, 3)
+
+
+class ParseGroupHtmlTests(unittest.TestCase):
+    def test_parses_days_from_alternative_grid_class(self):
+        html = """
+            <a class="navbar-brand">Группа 113501</a>
+            <div class="group_list_1 col-md-7">
+                <div class="list col-md-3">
+                    <div class="dayofweek">Понедельник, 23.11.2026</div>
+                    <div class="timetable_sheet hidden-xs">
+                        <div class="num_para">1</div>
+                        <div class="time_para">08:20-09:55</div>
+                        <div class="auditorium">ауд. 12, набережная Северной Двины, д. 2</div>
+                        <div class="discipline">Математика</div>
+                        <div class="group">Группа 113501</div>
+                    </div>
+                </div>
+            </div>
+        """
+
+        result = parse_group_html(html, "20297")
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["auditory"], "12 (11 корпус)")
 
 
 if __name__ == "__main__":

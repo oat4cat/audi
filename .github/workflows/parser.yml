@@ -5,12 +5,9 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  push:
-    branches:
-      - main
   schedule:
-    # 01:00 UTC == 04:00 по МСК
-    - cron: '0 1 * * *'
+    # 18:00 UTC == 21:00 по МСК; GitHub может задержать старт на несколько часов
+    - cron: '0 18 * * *'
   workflow_dispatch: # Позволяет запускать парсер вручную кнопкой Run Workflow из интерфейса GitHub
 
 jobs:

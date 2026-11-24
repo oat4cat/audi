@@ -1,0 +1,41 @@
+name: Refresh Main Data Snapshot
+
+concurrency:
+  group: main-data-snapshot
+  cancel-in-progress: false
+
+on:
+  schedule:
+    # Понедельник, 03:00 UTC == 06:00 по МСК
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download latest generated data
+        run: |
+          mkdir -p data
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/data/data/auditories.json" -o data/auditories.json
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/data/data/groups.json" -o data/groups.json
+
+      - name: Commit changed snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add --force data/auditories.json data/groups.json
+          if git diff --cached --quiet; then
+            echo "Snapshot is already up to date"
+            exit 0
+          fi
+          git commit -m "chore: refresh generated data snapshot"
+          git push
